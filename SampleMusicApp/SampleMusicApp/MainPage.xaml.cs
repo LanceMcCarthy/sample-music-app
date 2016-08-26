@@ -7,12 +7,12 @@ namespace SampleMusicApp
         public MainPage()
         {
             InitializeComponent();
-            Init();
+            Loaded += MainPage_Loaded;
         }
 
-        async void Init()
+        private async void MainPage_Loaded(object sender, Windows.UI.Xaml.RoutedEventArgs e)
         {
-            await Controllers.CatalogueController.GetCatalogueAlbumNamesAsync();
+            AlbumsListView.ItemsSource = await Controllers.CatalogueController.GetCatalogueAlbumNamesAsync();
         }
     }
 }

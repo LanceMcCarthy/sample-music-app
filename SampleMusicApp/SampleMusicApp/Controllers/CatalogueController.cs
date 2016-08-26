@@ -9,51 +9,60 @@ namespace SampleMusicApp.Controllers
 {
     public static class CatalogueController
     {
-        public static async Task GetCatalogueAlbumNamesAsync()
+        public static async Task<List<string>> GetCatalogueAlbumNamesAsync()
         {
-            //Get the Music library folder.
-            var musicFolder = KnownFolders.MusicLibrary;
+            var output = new List<string>();
+            
+            //********************* QueryOptions set using MusicProperties & Year ************************//
 
-            //Create a new query which will group folders by the System.Music.AlbumName property.
-            var query = new QueryOptions(CommonFolderQuery.GroupByAlbum);
+            output.Add($"-------MusicProperties Query via Year-------");
+            
+            var query = new QueryOptions(CommonFolderQuery.GroupByAlbum)
+            {
+                FolderDepth = FolderDepth.Deep
+            };
 
-            //Try to explicitly tell it to fetch the DateCreated property since it wasn't by default.
+            //See https://msdn.microsoft.com/en-us/library/windows/apps/windows.storage.fileproperties.musicproperties
             query.SetPropertyPrefetch(PropertyPrefetchOptions.MusicProperties, new List<string>
             {
-                "System.DateCreated"
+                "Year"
             });
 
-            //Query subfolders.
-            query.FolderDepth = FolderDepth.Deep;
+            var queriedFolders = await KnownFolders.MusicLibrary.CreateFolderQueryWithOptions(query).GetFoldersAsync();
 
-            //Get a list of StorageFolders grouped by the query.
-            var albumFolders = await KnownFolders.MusicLibrary.CreateFolderQueryWithOptions(query).GetFoldersAsync();
-
-            //Get a list of all StorageFolders in the music library (for comparison).
-            var allFolders = await musicFolder.GetFoldersAsync();
-
-            foreach (var albumFolder in albumFolders)
+            foreach (var albumFolder in queriedFolders)
             {
-                //Path is empty
-                var folderPath = albumFolder.Path;
+                var props = await albumFolder.Properties.GetMusicPropertiesAsync();
+                
+                output.Add($"Release Year: {props.Year}");
 
-                //DateCreated isn't set (so Windows returns 12/31/1600 7:00:00).----------------------------------
-                var creationDate = albumFolder.DateCreated; //                                                   |
-                //                                                                                               |
-                //...which wouldn't be so bad if this property would be set. But it's always 0. <-----------------
+                //Path is empty, may have been optimized out by the query. Need further feedback from dev team.
+                //var folderPath = albumFolder.Path;
+                //output.Add($"Path: {folderPath}");
+            }
+
+            //********************* No query ************************//
+
+            var nonQueryFolders = await KnownFolders.MusicLibrary.GetFoldersAsync();
+
+            output.Add($"-------No Query Performed-------");
+
+            foreach (var albumFolder in nonQueryFolders)
+            {
+                // Sometimes blank, works for user created folder
+                var creationDate = albumFolder.DateCreated;
+
+                // Reports 0
                 var releaseYear = (await albumFolder.Properties.GetMusicPropertiesAsync()).Year;
 
-                //NOTE: Occasionally one or both of these properties *will* be set correctly. I can't find any rhyme or reason for this.
+                output.Add($"creationDate: {creationDate}, releaseYear: {releaseYear}");
+
+                //Path is NOT empty because there is no query to opmtimize it out
+                var folderPath = albumFolder.Path;
+                output.Add($"Path: {folderPath}");
             }
 
-            foreach (var folder in allFolders)
-            {
-                //Path is set
-                var folderPath = folder.Path;
-
-                //DateCreated is set
-                var creationDate = folder.DateCreated;
-            }
+            return output;
         }
     }
 }
